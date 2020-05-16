@@ -2,6 +2,8 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <thread>
+#include <vector>
 #include <math.h>
 
 #define GLFW_INCLUDE_GLCOREARB
@@ -115,6 +117,13 @@ static const GLfloat g_color_buffer_data[] = {
     0.982f,  0.099f,  0.879f
 };
 
+std::vector<glm::vec3> cubes{glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)};
+GLfloat* g_compiled_vertex_data = new GLfloat[0];
+GLfloat* g_compiled_color_data = new GLfloat[0];
+int compiled_length = 0;
+int compiled_vertices = 0;
+
+
 /* input callbacks */
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if(action == GLFW_PRESS) {
@@ -160,6 +169,38 @@ void window_size_callback(GLFWwindow* window, int w, int h) {
     width = w;
     height = h;
     Projection = glm::perspective(glm::radians(view->fov), (float) width / (float)height, 0.1f, 100.0f);
+}
+
+/* gol logic */
+
+void gol_thread() {
+    return;
+}
+
+void compile_cubes() {
+    int vlen = sizeof(g_vertex_buffer_data)/sizeof(*g_vertex_buffer_data);
+    int clen = cubes.size();
+    g_compiled_vertex_data = new GLfloat[clen*vlen];
+    g_compiled_color_data = new GLfloat[clen*vlen];
+    compiled_length = clen*vlen*sizeof(GLfloat);
+    compiled_vertices = clen*vlen;
+    std::cout << compiled_length << std::endl;
+    for(int i=0; i < clen;i++) {
+        for(int v=0; v < vlen/3; v++) {
+            std::cout << i*vlen+v*3 << std::endl;
+            std::cout << i*vlen+v*3+1 << std::endl;
+            std::cout << i*vlen+v*3+2 << std::endl;
+            g_compiled_vertex_data[i*vlen+v*3+0] = g_vertex_buffer_data[v*3+0]+2*cubes[i].x;
+            g_compiled_vertex_data[i*vlen+v*3+1] = g_vertex_buffer_data[v*3+1]+2*cubes[i].y;
+            g_compiled_vertex_data[i*vlen+v*3+2] = g_vertex_buffer_data[v*3+2]+2*cubes[i].z;
+            g_compiled_color_data[i*vlen+v*3+0] = abs(cubes[i].x/3)+g_vertex_buffer_data[v*3+0]/10;
+            g_compiled_color_data[i*vlen+v*3+1] = abs(cubes[i].y/3+g_vertex_buffer_data[v*3+1]/10);
+            g_compiled_color_data[i*vlen+v*3+2] = abs(cubes[i].z/3)+g_vertex_buffer_data[v*3+2]/10;
+            // g_compiled_color_data[i*vlen+v*3+0] = g_color_buffer_data[v*3+0];
+            // g_compiled_color_data[i*vlen+v*3+1] = g_color_buffer_data[v*3+1];
+            // g_compiled_color_data[i*vlen+v*3+2] = g_color_buffer_data[v*3+2];
+        }
+    }
 }
 
 
@@ -238,11 +279,12 @@ int main(int argc, char** argv) {
     GLuint vertexbuffer;
     glGenBuffers(1, &vertexbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
+    compile_cubes();
+    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
     GLuint colorbuffer;
     glGenBuffers(1, &colorbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_color_buffer_data), g_color_buffer_data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
 
     // Create and compile our GLSL program from the shaders
     GLuint programID = LoadShaders( "main/SimpleVertexShader.vertexshader", "main/SimpleFragmentShader.fragmentshader" );
@@ -280,7 +322,7 @@ int main(int argc, char** argv) {
             (void*)0                          // array buffer offset
         );
         // Draw the triangle !
-        glDrawArrays(GL_TRIANGLES, 0, 12*3); // Starting from vertex 0; 3 vertices total -> 1 triangle
+        glDrawArrays(GL_TRIANGLES, 0, compiled_vertices); // Starting from vertex 0; 3 vertices total -> 1 triangle
         glDisableVertexAttribArray(0);
 
         /* Swap front and back buffers */
