@@ -2,6 +2,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <math.h>
 
 #define GLFW_INCLUDE_GLCOREARB
 // #include <GL/glew.h>
@@ -116,17 +117,22 @@ static const GLfloat g_color_buffer_data[] = {
 
 /* input callbacks */
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-    std::cout << "down" << std::endl;
-    if(button == GLFW_MOUSE_BUTTON_LEFT) {
-        if(action == GLFW_PRESS) {
+    if(action == GLFW_PRESS) {
+        if(button == GLFW_MOUSE_BUTTON_LEFT) {
             drag = 1;
             double xpos, ypos;
             glfwGetCursorPos(window, &xpos, &ypos);
             lastMousePt->x = xpos;
             lastMousePt->y = ypos;
-        } else {
-            drag = 0;
+        } else if(button == GLFW_MOUSE_BUTTON_RIGHT) {
+            drag = 2;
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            lastMousePt->x = xpos;
+            lastMousePt->y = ypos;
         }
+    } else {
+        drag = 0;
     }
 }
 
@@ -138,22 +144,40 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
     if(drag == 1) {
         view->horiz -= delta->x*0.01;
         view->vert -= delta->y*0.01;
+    } else if(drag == 2) {
+        view->transx += delta->x*0.01;
+        view->transy += delta->y*0.01;
     }
-    std::cout << view->horiz << ":" << view->vert << std::endl;
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    view->zoom *= pow(1.01, yoffset);
+    view->fov += xoffset*0.1;
+    Projection = glm::perspective(glm::radians(view->fov), (float) width / (float)height, 0.1f, 100.0f);
+}
+
+void window_size_callback(GLFWwindow* window, int w, int h) {
+    width = w;
+    height = h;
+    Projection = glm::perspective(glm::radians(view->fov), (float) width / (float)height, 0.1f, 100.0f);
 }
 
 
-glm::mat4 get_mvp(float zoom, float y_angle, float vert_angle) {
+glm::mat4 get_mvp(float zoom, float y_angle, float vert_angle, float transx, float transy) {
     
     // Or, for an ortho camera :
     //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 
-    glm::vec4 cam = glm::rotate(glm::mat4(1.0f), y_angle, glm::vec3(0, 1, 0)) * glm::rotate(glm::mat4(1.0f), vert_angle, glm::vec3(1, 0, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(zoom, zoom, zoom)) * glm::vec4(0, 0, 1, 1);
+    glm::vec3 cam = glm::vec3(glm::rotate(glm::mat4(1.0f), y_angle, glm::vec3(0, 1, 0)) * 
+                                glm::rotate(glm::mat4(1.0f), vert_angle, glm::vec3(1, 0, 0)) * 
+                                glm::scale(glm::mat4(1.0f), glm::vec3(zoom, zoom, zoom)) * 
+                                glm::vec4(0, 0, 1, 1));
+    glm::vec3 look = /*glm::cross(cam, glm::vec3(0, 1, 0)) * transx + */glm::vec3(0, 0, 0);
     
     // Camera matrix
     glm::mat4 View = glm::lookAt(
-        glm::vec3(cam), // Camera is at (4,3,3), in World Space
-        glm::vec3(0,0,0), // and looks at the origin
+        cam, // Camera is at (4,3,3), in World Space
+        look, // and looks at the origin
         glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
         );
     
@@ -198,6 +222,8 @@ int main(int argc, char** argv) {
     // glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+    glfwSetWindowSizeCallback(window, window_size_callback);
 
     // configure for display
     glEnable(GL_CULL_FACE);
@@ -226,7 +252,7 @@ int main(int argc, char** argv) {
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window)) {
-        glm::mat4 mvp = get_mvp(view->zoom, view->horiz, view->vert);
+        glm::mat4 mvp = get_mvp(view->zoom, view->horiz, view->vert, view->transx, view->transy);
         glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the buffers
