@@ -1,8 +1,15 @@
+#ifndef LOAD_SHADER_H
+#define LOAD_SHADER_H
+
+#define GLFW_INCLUDE_GLCOREARB
+#include <GLFW/glfw3.h>
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <vector>
 #include <fstream>
-#include <GLFW/glfw3.h>
 
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path){
 
@@ -91,3 +98,5 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 
 	return ProgramID;
 }
+
+#endif
