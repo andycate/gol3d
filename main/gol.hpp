@@ -28,7 +28,7 @@ class GOL {
     };
     typedef std::unordered_map<glm::vec3,glm::vec3,Vec3Key,Vec3Key> Cubes;
     private:
-        static glm::vec3 transforms[26];
+        static const glm::vec3 transforms[26];
         Cubes cubes;
         Rule r;
     public:

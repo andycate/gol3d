@@ -1,6 +1,6 @@
 #include "gol.hpp"
 
-glm::vec3 GOL::transforms[26] = {glm::vec3(-1, -1, -1),
+const glm::vec3 GOL::transforms[26] = {glm::vec3(-1, -1, -1),
                     glm::vec3(-1, -1, 0),
                     glm::vec3(-1, -1, 1),
                     glm::vec3(-1, 0, -1),
