@@ -1,5 +1,6 @@
 #include "LoadShader.hpp"
 #include "gol.hpp"
+#include "cube.hpp"
 
 #define GLFW_INCLUDE_GLCOREARB
 // #include <GL/glew.h>
@@ -20,6 +21,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <math.h>
+#include <limits>
 
 /* structures */
 struct Point {
@@ -41,6 +43,9 @@ int height = 600;
 Point* lastMousePt = new Point;
 Point* delta = new Point;
 int drag = 0;
+float closest_dist = std::numeric_limits<float>::max();
+int closest_index = -1;
+int closest_face = 0;
 View* view = new View;
 GLuint vertexbuffer;
 GLuint colorbuffer;
@@ -50,6 +55,7 @@ GLfloat* g_compiled_vertex_data = new GLfloat[0];
 GLfloat* g_compiled_color_data = new GLfloat[0];
 int compiled_length = 0;
 int compiled_vertices = 0;
+std::vector<Cube> cubes;
 GOL game(std::vector<glm::vec3>({/* glm::vec3(0, 0, 0), */
                                     // glm::vec3(1, 0, 0), 
                                     // glm::vec3(0, 1, 0), 
@@ -82,23 +88,26 @@ GOL game(std::vector<glm::vec3>({/* glm::vec3(0, 0, 0), */
                                 }), 5, 6, 5, 5);
 
 
-void compile_cubes(std::vector<glm::vec3> cubes) {
-    int vlen = sizeof(g_vertex_buffer_data)/sizeof(*g_vertex_buffer_data);
-    int clen = cubes.size();
+void compile_cubes() {
+    cubes.clear();
+    for(glm::vec3 c : game.get_cubes()) {
+        cubes.push_back(Cube(c));
+    }
+
+    size_t clen = cubes.size();
+    size_t vlen = Cube::vlen;
     g_compiled_vertex_data = new GLfloat[clen*vlen];
     g_compiled_color_data = new GLfloat[clen*vlen];
     compiled_length = clen*vlen*sizeof(GLfloat);
     compiled_vertices = clen*vlen;
-    for(int i=0; i < clen;i++) {
-        for(int v=0; v < vlen/3; v++) {
-            g_compiled_vertex_data[i*vlen+v*3+0] = g_vertex_buffer_data[v*3+0]+2*cubes[i].x;
-            g_compiled_vertex_data[i*vlen+v*3+1] = g_vertex_buffer_data[v*3+1]+2*cubes[i].y;
-            g_compiled_vertex_data[i*vlen+v*3+2] = g_vertex_buffer_data[v*3+2]+2*cubes[i].z;
-            g_compiled_color_data[i*vlen+v*3+0] = abs(cubes[i].x/3)+g_vertex_buffer_data[v*3+0]/10;
-            g_compiled_color_data[i*vlen+v*3+1] = abs(cubes[i].y/3+g_vertex_buffer_data[v*3+1]/10);
-            g_compiled_color_data[i*vlen+v*3+2] = abs(cubes[i].z/3)+g_vertex_buffer_data[v*3+2]/10;
-        }
+    for(int i = 0; i < clen; i++) {
+        cubes[i].append_vertices(g_compiled_vertex_data, i*vlen);
+        cubes[i].append_colors(g_compiled_color_data, i*vlen);
     }
+    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
 }
 
 /* input callbacks */
@@ -110,15 +119,33 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
             glfwGetCursorPos(window, &xpos, &ypos);
             lastMousePt->x = xpos;
             lastMousePt->y = ypos;
+            delta->x = 0;
+            delta->y = 0;
         } else if(button == GLFW_MOUSE_BUTTON_RIGHT) {
             drag = 2;
             double xpos, ypos;
             glfwGetCursorPos(window, &xpos, &ypos);
             lastMousePt->x = xpos;
             lastMousePt->y = ypos;
+            delta->x = 0;
+            delta->y = 0;
         }
-    } else {
+    } else if(action == GLFW_RELEASE) {
         drag = 0;
+        if(delta->x == 0 && delta->y == 0) {
+            if(button == GLFW_MOUSE_BUTTON_LEFT) {
+                std::cout << "click!" << std::endl;
+                if(closest_index > -1) {
+                    if(game.add_cube(cubes[closest_index].get_position() + Cube::face_transforms[closest_face]))
+                        compile_cubes();
+                }
+            } else if(button == GLFW_MOUSE_BUTTON_RIGHT) {
+                if(closest_index > -1) {
+                    if(game.remove_cube(cubes[closest_index].get_position()))
+                        compile_cubes();
+                }
+            }
+        }
     }
 }
 
@@ -127,27 +154,50 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
     delta->y = ypos - lastMousePt->y;
     lastMousePt->x = xpos;
     lastMousePt->y = ypos;
-    double xnorm = 2.0 * xpos / width;
-    double ynorm = 2.0 * ypos / height;
-    glm::vec4 ray_clip = glm::vec4(xnorm, ynorm, -1.0, 1.0);
-    glm::vec4 ray_eye = glm::inverse(Projection) * ray_clip;
-    ray_eye = glm::vec4(ray_eye.x, ray_eye.y, -1.0, 0.0);
-    glm::vec3 cam = glm::vec3(glm::rotate(glm::mat4(1.0f), view->horiz, glm::vec3(0, 1, 0)) * 
-                                glm::rotate(glm::mat4(1.0f), view->vert, glm::vec3(1, 0, 0)) * 
-                                glm::scale(glm::mat4(1.0f), glm::vec3(view->zoom, view->zoom, view->zoom)) * 
-                                glm::vec4(0, 0, 1, 1));
-    glm::mat4 View = glm::lookAt(
-        cam, // Camera is at (4,3,3), in World Space
-        glm::vec3(0, 0, 0), // and looks at the origin
-        glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
-        );
-    glm::vec3 ray_wor = glm::vec3(glm::inverse(View) * ray_eye);
     if(drag == 1) {
         view->horiz -= delta->x*0.01;
         view->vert -= delta->y*0.01;
     } else if(drag == 2) {
         view->transx += delta->x*0.01;
         view->transy += delta->y*0.01;
+    } else {
+        double xnorm = (2.0 * xpos / width) - 1.0;
+        double ynorm = -(2.0 * ypos / height) + 1.0;
+        glm::vec4 ray_clip = glm::vec4(xnorm, ynorm, -1.0, 1.0);
+        glm::vec4 ray_eye = glm::inverse(Projection) * ray_clip;
+        ray_eye = glm::vec4(ray_eye.x, ray_eye.y, -1.0, 0.0);
+        glm::vec3 cam = glm::vec3(glm::rotate(glm::mat4(1.0f), view->horiz, glm::vec3(0, 1, 0)) * 
+                                    glm::rotate(glm::mat4(1.0f), view->vert, glm::vec3(1, 0, 0)) * 
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(view->zoom, view->zoom, view->zoom)) * 
+                                    glm::vec4(0, 0, 1, 1));
+        glm::mat4 View = glm::lookAt(
+            cam, // Camera is at (4,3,3), in World Space
+            glm::vec3(0, 0, 0), // and looks at the origin
+            glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
+            );
+        glm::vec3 ray_wor = glm::vec3(glm::inverse(View) * ray_eye);
+        cubes[closest_index].clear_highlight();
+        cubes[closest_index].append_vertices(g_compiled_vertex_data, closest_index*Cube::vlen);
+        cubes[closest_index].append_colors(g_compiled_color_data, closest_index*Cube::vlen);
+        closest_dist = std::numeric_limits<float>::max();
+        closest_index = -1;
+        for(int i = 0; i < cubes.size(); i++) {
+            std::pair<int, float> res = cubes[i].update_intersection(cam, ray_wor);
+            if(res.first > -1) {
+                closest_dist = std::min(closest_dist, res.second);
+                if(closest_dist == res.second) {
+                    closest_index = i;
+                    closest_face = res.first;
+                }
+            }
+        }
+        if(closest_dist < std::numeric_limits<float>::max()) {
+            cubes[closest_index].highlight_face(closest_face);
+            cubes[closest_index].append_vertices(g_compiled_vertex_data, closest_index*Cube::vlen);
+            cubes[closest_index].append_colors(g_compiled_color_data, closest_index*Cube::vlen);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+        glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
     }
 }
 
@@ -160,11 +210,8 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if(key == GLFW_KEY_I && action == GLFW_PRESS) {
         game.iterate();
-        compile_cubes(game.get_cubes());
-        glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-        glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-        glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
+        
+        compile_cubes();
     }
 }
 
@@ -203,8 +250,6 @@ glm::mat4 get_mvp(float zoom, float y_angle, float vert_angle, float transx, flo
 
 
 int main(int argc, char** argv) {
-    std::cout << glm::to_string(Projection) << std::endl;
-
     GLFWwindow* window;
 
     /* Initialize the library */
@@ -222,7 +267,7 @@ int main(int argc, char** argv) {
     #endif
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow( 800, 600, "3D GOL", NULL, NULL );
+    window = glfwCreateWindow( width, height, "3D GOL", NULL, NULL );
     if (!window)
     {
         glfwTerminate();
@@ -251,12 +296,9 @@ int main(int argc, char** argv) {
     glGenVertexArrays(1, &VertexArrayID);
     glBindVertexArray(VertexArrayID);
     glGenBuffers(1, &vertexbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    compile_cubes(game.get_cubes());
-    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
     glGenBuffers(1, &colorbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
+
+    compile_cubes();
 
     // Create and compile our GLSL program from the shaders
     GLuint programID = LoadShaders( "main/SimpleVertexShader.vertexshader", "main/SimpleFragmentShader.fragmentshader" );

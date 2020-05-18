@@ -1,6 +1,6 @@
 #include "MollerTrumbore.hpp"
 
-bool rayIntersectsTriangle(glm::vec3 ray_origin, glm::vec3 ray_vector, glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, glm::vec3& out_intersection) {
+bool rayIntersectsTriangle(glm::vec3 ray_origin, glm::vec3 ray_vector, glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, float& out_dist) {
     const float EPSILON = 0.0000001;
     glm::vec3 edge1, edge2, h, s, q;
     float a,f,u,v;
@@ -23,7 +23,8 @@ bool rayIntersectsTriangle(glm::vec3 ray_origin, glm::vec3 ray_vector, glm::vec3
     float t = f * glm::dot(edge2, q);
     if (t > EPSILON) // ray intersection
     {
-        out_intersection = ray_origin + ray_vector * t;
+        out_dist = t;
+        // out_intersection = ray_origin + ray_vector * t;
         return true;
     }
     else // This means that there is a line intersection but not a ray intersection.
