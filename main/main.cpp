@@ -51,6 +51,8 @@ GLuint vertexbuffer;
 GLuint colorbuffer;
 glm::mat4 Projection = glm::perspective(glm::radians(view->fov), (float) width / (float)height, 0.1f, 100.0f);
 
+FILE *avconv = NULL;
+
 GLfloat* g_compiled_vertex_data = new GLfloat[0];
 GLfloat* g_compiled_color_data = new GLfloat[0];
 int compiled_length = 0;
@@ -85,7 +87,7 @@ GOL game(std::vector<glm::vec3>({/* glm::vec3(0, 0, 0), */
                                     glm::vec3(0, 1, 1),
                                     glm::vec3(-1, 0, -1),
                                     glm::vec3(-1, 1, -1),
-                                }), 5, 6, 5, 5);
+                                }), 4, 5, 2, 6);
 
 
 void compile_cubes() {
@@ -221,6 +223,15 @@ void window_size_callback(GLFWwindow* window, int w, int h) {
     Projection = glm::perspective(glm::radians(view->fov), (float) width / (float)height, 0.1f, 100.0f);
 }
 
+void window_close_callback(GLFWwindow* window) {
+    glfwSetWindowShouldClose(window, GLFW_TRUE);
+    std::cout << "here" << std::endl;
+    if(avconv) {
+        std::cout << "pclose" << std::endl;
+        pclose(avconv);
+    }
+}
+
 
 glm::mat4 get_mvp(float zoom, float y_angle, float vert_angle, float transx, float transy) {
     
@@ -284,6 +295,7 @@ int main(int argc, char** argv) {
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
     glfwSetWindowSizeCallback(window, window_size_callback);
+    glfwSetWindowCloseCallback(window, window_close_callback);
 
     // configure for display
     glEnable(GL_CULL_FACE);
@@ -305,6 +317,15 @@ int main(int argc, char** argv) {
     glUseProgram(programID);
 
     GLuint MatrixID = glGetUniformLocation(programID, "MVP");
+
+
+    // set up video recording
+    avconv = popen("avconv -y -f rawvideo -s 1600x1200 -pix_fmt rgb24 -r 25 -i - -vf vflip -an -b:v 10000k test.mp4", "w");
+
+    int params[4];
+    glGetIntegerv(GL_VIEWPORT, params);
+    std::cout << params[0] << ":" << params[1] << ":" << params[2] << ":" << params[3] << std::endl;
+
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window)) {
@@ -339,11 +360,21 @@ int main(int argc, char** argv) {
         glDrawArrays(GL_TRIANGLES, 0, compiled_vertices); // Starting from vertex 0; 3 vertices total -> 1 triangle
         glDisableVertexAttribArray(0);
 
+        // save frame to file
+        void *pixels = malloc(1600*1200*3);
+        glReadPixels(0, 0, 1600, 1200, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+        if (avconv)
+            fwrite(pixels, 1600*1200*3, 1, avconv);
+
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
 
+        /* transform */
+        view->vert += 0.01;
+
         /* Poll for and process events */
-        glfwWaitEvents();
+        // glfwWaitEvents();
+        glfwPollEvents();
     }
 
     glfwTerminate();
