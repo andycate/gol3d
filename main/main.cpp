@@ -78,13 +78,13 @@ GOL game(std::vector<glm::vec3>({/* glm::vec3(0, 0, 0), */
                                     // glm::vec3(1, 1, 1), 
                                     // glm::vec3(1, -1, 1), 
                                     // glm::vec3(1, 1, -1),
-                                    glm::vec3(0, 0, 0),
                                     glm::vec3(1, 0, 0),
-                                    glm::vec3(1, 1, 0),
-                                    glm::vec3(0, 0, 1),
-                                    glm::vec3(0, 1, 1),
-                                    glm::vec3(-1, 0, -1),
-                                    glm::vec3(-1, 1, -1),
+                                    glm::vec3(2, 0, 0),
+                                    glm::vec3(2, 1, 0),
+                                    glm::vec3(1, 0, 1),
+                                    glm::vec3(1, 1, 1),
+                                    glm::vec3(0, 0, -1),
+                                    glm::vec3(0, 1, -1),
                                 }), 5, 6, 5, 5);
 
 
@@ -94,8 +94,13 @@ void compile_cubes() {
         cubes.push_back(Cube(c));
     }
 
+    for(Cube c : cubes) {
+        std::cout << c.get_position().x << c.get_position().y << c.get_position().z << std::endl;
+    }
+
     size_t clen = cubes.size();
     size_t vlen = Cube::vlen;
+    std::cout << clen << " clen" << std::endl;
     g_compiled_vertex_data = new GLfloat[clen*vlen];
     g_compiled_color_data = new GLfloat[clen*vlen];
     compiled_length = clen*vlen*sizeof(GLfloat);
@@ -104,10 +109,13 @@ void compile_cubes() {
         cubes[i].append_vertices(g_compiled_vertex_data, i*vlen);
         cubes[i].append_colors(g_compiled_color_data, i*vlen);
     }
+    std::cout << compiled_length << " actiual len" << std::endl;
+    std::cout << compiled_vertices << " actiual len" << std::endl;
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
     glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
     glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_color_data, GL_STATIC_DRAW);
+    glFlush();
 }
 
 /* input callbacks */
@@ -176,9 +184,11 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
             glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
             );
         glm::vec3 ray_wor = glm::vec3(glm::inverse(View) * ray_eye);
-        cubes[closest_index].clear_highlight();
-        cubes[closest_index].append_vertices(g_compiled_vertex_data, closest_index*Cube::vlen);
-        cubes[closest_index].append_colors(g_compiled_color_data, closest_index*Cube::vlen);
+        if(closest_index > -1) {
+            cubes[closest_index].clear_highlight();
+            cubes[closest_index].append_vertices(g_compiled_vertex_data, closest_index*Cube::vlen);
+            cubes[closest_index].append_colors(g_compiled_color_data, closest_index*Cube::vlen);
+        }
         closest_dist = std::numeric_limits<float>::max();
         closest_index = -1;
         for(int i = 0; i < cubes.size(); i++) {
@@ -210,7 +220,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if(key == GLFW_KEY_I && action == GLFW_PRESS) {
         game.iterate();
-        
+        closest_index = -1;
         compile_cubes();
     }
 }
@@ -336,7 +346,7 @@ int main(int argc, char** argv) {
             (void*)0                          // array buffer offset
         );
         // Draw the triangle !
-        glDrawArrays(GL_TRIANGLES, 0, compiled_vertices); // Starting from vertex 0; 3 vertices total -> 1 triangle
+        glDrawArrays(GL_TRIANGLES, 0, compiled_vertices/3); // Starting from vertex 0; 3 vertices total -> 1 triangle
         glDisableVertexAttribArray(0);
 
         /* Swap front and back buffers */
