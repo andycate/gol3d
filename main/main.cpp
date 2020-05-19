@@ -210,10 +210,16 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if(key == GLFW_KEY_I && action == GLFW_PRESS) {
+    if(key == GLFW_KEY_I && action == GLFW_RELEASE) {
         game.iterate();
         closest_index = -1;
         compile_cubes();
+    } else if(key == GLFW_KEY_P && action == GLFW_RELEASE) {
+        std::cout << "Total: " << cubes.size() << std::endl;
+        for(Cube c : cubes) {
+            glm::vec3 pose = c.get_position();
+            std::cout << "(" << pose.x << "," << pose.y << ":" << pose.z << ")" << std::endl;
+        }
     }
 }
 
