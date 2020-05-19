@@ -94,13 +94,8 @@ void compile_cubes() {
         cubes.push_back(Cube(c));
     }
 
-    for(Cube c : cubes) {
-        std::cout << c.get_position().x << c.get_position().y << c.get_position().z << std::endl;
-    }
-
     size_t clen = cubes.size();
     size_t vlen = Cube::vlen;
-    std::cout << clen << " clen" << std::endl;
     g_compiled_vertex_data = new GLfloat[clen*vlen];
     g_compiled_color_data = new GLfloat[clen*vlen];
     compiled_length = clen*vlen*sizeof(GLfloat);
@@ -109,8 +104,6 @@ void compile_cubes() {
         cubes[i].append_vertices(g_compiled_vertex_data, i*vlen);
         cubes[i].append_colors(g_compiled_color_data, i*vlen);
     }
-    std::cout << compiled_length << " actiual len" << std::endl;
-    std::cout << compiled_vertices << " actiual len" << std::endl;
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
     glBufferData(GL_ARRAY_BUFFER, compiled_length, g_compiled_vertex_data, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
@@ -142,7 +135,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         drag = 0;
         if(delta->x == 0 && delta->y == 0) {
             if(button == GLFW_MOUSE_BUTTON_LEFT) {
-                std::cout << "click!" << std::endl;
                 if(closest_index > -1) {
                     if(game.add_cube(cubes[closest_index].get_position() + Cube::face_transforms[closest_face]))
                         compile_cubes();
@@ -184,7 +176,7 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
             glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
             );
         glm::vec3 ray_wor = glm::vec3(glm::inverse(View) * ray_eye);
-        if(closest_index > -1) {
+        if(closest_index > -1 && closest_index < cubes.size()) {
             cubes[closest_index].clear_highlight();
             cubes[closest_index].append_vertices(g_compiled_vertex_data, closest_index*Cube::vlen);
             cubes[closest_index].append_colors(g_compiled_color_data, closest_index*Cube::vlen);
